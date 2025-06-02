@@ -1,0 +1,1674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="geo" content="Show your location on the map to plan bike routes">
+    <title>Bike Route Planner</title>
+    
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+		#controls {
+		    position: fixed;
+		    top: 100px;  /* Changed from 80px to make space for layers */
+		    left: 20px;
+		    z-index: 1000;
+		    display: flex;
+		    flex-direction: column;
+		    gap: 10px;
+		}
+
+        #controls button {
+            background: rgba(255, 255, 255, 0.12);
+            backdrop-filter: blur(10px);
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        #controls button:hover {
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        #controls button:active {
+            transform: translateY(0);
+        }
+
+        #road-filters {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 5px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 250px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        #road-filters h4 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 16px;
+        }
+
+        .filter-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 10px;
+        }
+
+        .filter-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .filter-item label {
+            font-size: 14px;
+            cursor: pointer;
+            color: #555;
+        }
+		
+		.hover {
+		    display: flex;
+		    align-items: center;
+		    justify-content: center;
+		    color: #555;
+		    text-shadow: 0 0 3px white;
+		    pointer-events: none;
+		}
+		
+		.elevation-svg .tooltip {
+		    pointer-events: none;
+		    transition: opacity 0.2s;
+		}
+
+		.elevation-svg .tooltip rect {
+		    fill: rgba(255, 255, 255, 0.9);
+		    stroke: #666;
+		}
+
+		.elevation-svg .tooltip text {
+		    fill: #333;
+		}
+
+		.elevation-svg .tooltip tspan {
+		    font-size: 10px;
+		}
+
+		.hover-area {
+		    cursor: crosshair;
+		}
+		
+		.elevation-svg .tooltip rect {
+		    width: 130px;
+		    height: 80px;
+		}
+
+		.elevation-svg .tooltip text {
+		    font-size: 10px;
+		    fill: #333;
+		}
+
+		.elevation-svg .tooltip tspan {
+		    font-size: 10px;
+		}
+
+        #map {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            cursor: crosshair;
+        }
+
+        #route-info {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 15px 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            font-weight: 500;
+            min-width: 200px;
+        }
+
+        #elevation-profile {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            max-width: 300px;
+        }
+
+        #road-legend {
+            position: fixed;
+            top: 10px;
+            right: 210px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 5px 5px;
+            border-radius: 12px;
+            box-shadow: 0 5px 27px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        #road-legend h4 {
+            margin-bottom: 10px;
+            font-size: 12px;
+            color: #333;
+        }
+
+        #road-legend div {
+            display: flex;
+            align-items: left;
+            margin-bottom: 5px;
+            font-size: 12px;
+            gap: 10px;
+        }
+
+        #road-legend span {
+            width: 20px;
+            height: 3px;
+            display: inline-block;
+            border-radius: 2px;
+        }
+		
+		#map-layers {
+		    position: fixed;
+		    top: 20px;
+		    left: 60px;
+		    z-index: 1000;
+		    display: flex;
+		    gap: 10px;
+		}
+
+		#map-layers button {
+		    background: rgba(255, 255, 255, 0.12);
+		    backdrop-filter: blur(10px);
+		    border: none;
+		    padding: 8px 12px;
+		    border-radius: 8px;
+		    font-weight: 600;
+		    cursor: pointer;
+		    transition: all 0.3s ease;
+		    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+		    border: 1px solid rgba(255, 255, 255, 0.2);
+		    font-size: 14px;
+		}
+
+		#map-layers button:hover {
+		    background: rgba(255, 255, 255, 1);
+		    transform: translateY(-2px);
+		    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+		}
+
+		#map-layers button:active {
+		    transform: translateY(0);
+		}
+
+		@media (max-width: 768px) {
+		    #map-layers {
+		        top: 1200px;
+		        left: 10px;
+		    }
+    
+		    #map-layers button {
+		        padding: 6px 10px;
+		        font-size: 12px;
+		    }
+		}
+
+        .start-marker, .checkpoint-marker, .hover-marker, .user-location-marker {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .elevation-chart {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            color: white;
+            font-size: 18px;
+            backdrop-filter: blur(5px);
+        }
+
+        @media (max-width: 768px) {
+            .status {
+                font-size: 14px;
+                padding: 10px 15px;
+            }
+            
+            #road-filters {
+                right: 10px;
+                top: 10px;
+                max-width: 200px;
+                padding: 15px;
+            }
+            
+            #controls {
+                left: 10px;
+                top: 70px;
+            }
+            
+            #controls button {
+                padding: 10px 15px;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="loading-overlay" id="loading-overlay">
+        <div>Loading mapping tools... Please wait</div>
+    </div>
+  
+    <div id="road-filters">
+        <h4>Road Preferences</h4>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-motorway">
+            <label for="exclude-motorway">Avoid motorways</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-trunk">
+            <label for="exclude-trunk">Avoid trunk roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-primary">
+            <label for="exclude-primary">Avoid primary roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-secondary">
+            <label for="exclude-secondary">Avoid secondary roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-tertiary" checked>
+            <label for="exclude-tertiary">Avoid tertiary roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-residential">
+            <label for="exclude-residential">Avoid residential roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-service">
+            <label for="exclude-service">Avoid service roads</label>
+        </div>
+        <div class="filter-item">
+            <input type="checkbox" id="exclude-track" checked>
+            <label for="exclude-track">Avoid unpaved roads</label>
+        </div>
+    </div>
+    
+    <div id="controls">
+        <button id="new-track">🔄 New Track</button>
+        <button id="undo-last">↶ Undo Last</button>
+        <button id="round-trip">🔁 Round Trip</button>
+        <button id="export-gpx">📁 Export GPX</button>
+        <button id="find-location">📍 Find Me</button>
+    </div>
+    
+	<div id="map-layers">
+	    <button id="satellite-layer">🛰️ Satellite</button>
+	    <button id="hybrid-layer">🌍 Hybrid</button>
+	    <button id="terrain-layer">⛰️ Terrain</button>
+	    <button id="default-layer">🗺️ Default</button>
+	</div>
+	
+    <div id="map"></div>
+    <div id="route-info"></div>
+    <div id="elevation-profile"></div>
+    
+    <div id="road-legend">
+        <h4>Road Types</h4>
+        <div><span style="background-color: #FF0000"></span> Motorway</div>
+        <div><span style="background-color: #FF4500"></span> Trunk</div>
+        <div><span style="background-color: #FFA500"></span> Primary</div>
+        <div><span style="background-color: #FFFF00"></span> Secondary</div>
+        <div><span style="background-color: #D2B48C"></span> Tertiary</div>
+        <div><span style="background-color: #00FF00"></span> Residential</div>
+        <div><span style="background-color: #A9A9A9"></span> Service</div>
+        <div><span style="background-color: #8B4513"></span> Unpaved</div>
+    </div>
+
+    <!-- Load libraries in correct order -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    
+    <script>
+        // Initialize the bike route planner
+        const map = L.map('map').setView([44.05048, 12.5606346], 12);
+
+        const ROAD_COLORS = {
+            'motorway': '#FF0000',      
+            'trunk': '#FF4500',         
+            'primary': '#FFA500',       
+            'secondary': '#FFFF00',     
+            'tertiary': '#D2B48C',      
+            'residential': '#00FF00',   
+            'service': '#A9A9A9',       
+            'track': '#8B4513',         
+            'unclassified': '#C0C0C0',  
+            'default': '#0078A8'        
+        };
+		
+		// Configuration for the new gradient calculation
+		const GRADIENT_CALC_CONFIG = {
+		    directCalcWindowSize: 2,   // Number of points for the initial "direct" gradient calc (uses the segment between targetIndex and targetIndex-1)
+		    maxWindowSize: 20,          // Max number of points in the fallback weighted window (this means up to maxWindowSize-1 segments)
+		    validGradientMin: -25,     // Min valid gradient percentage for direct use
+		    validGradientMax: 25       // Max valid gradient percentage for direct use
+		};	
+
+        const startIcon = L.divIcon({
+            className: 'start-marker',
+            html: '🚴‍♂️',
+            iconSize: [25, 25]
+        });
+
+        const checkpointIcon = L.divIcon({
+            className: 'checkpoint-marker',
+            html: '🎯',
+            iconSize: [20, 20]
+        });
+
+        const hoverIcon = L.divIcon({
+            className: 'hover-marker',
+            html: '⬤',
+            iconSize: [12, 12]
+        });
+		
+		const hoverPointIcon = L.divIcon({
+		    className: 'hover-point-marker',
+		    html: '⬤',
+    		iconSize: [12, 12],
+    		iconAnchor: [6, 6]
+		});
+		
+        // Elevation services configuration
+        const ELEVATION_SERVICES = [
+            {
+                name: 'OpenTopoData',
+                processor: async (coords) => {
+                    const geoJson = {
+                        type: "LineString",
+                        coordinates: coords
+                    };
+                    const response = await fetch('https://api.opentopodata.org/v1/srtm30m?locations=' + 
+                        encodeURIComponent(JSON.stringify(geoJson)), {
+                        signal: AbortSignal.timeout(3000)
+                    });
+                    const data = await response.json();
+                    return data.results?.map(r => r.elevation) || [];
+                },
+                batchSize: 100
+            },
+            {
+                name: 'Open-Elevation',
+                processor: async (coords) => {
+                    const points = coords.map(coord => `${coord[1]},${coord[0]}`).join('|');
+                    const response = await fetch(`https://api.open-elevation.com/api/v1/lookup?locations=${points}`, {
+                        signal: AbortSignal.timeout(3000)
+                    });
+                    const data = await response.json();
+                    return data.results?.map(r => r.elevation) || [];
+                },
+                batchSize: 50
+            }
+        ];
+
+        // Cache system
+        const elevationCache = new Map();
+        const CACHE_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24 hours
+		
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+        let markers = [];
+        let route = null;
+        let hoverMarker = null;
+ 		let currentRouteData = {
+		    geometry: null,
+		    distance: 0,
+		    roadElements: [] // Initialize empty array
+		};
+
+        async function getElevationWithRetry(coordinates) {
+            // Generate cache key
+            const cacheKey = coordinates.map(c => `${c[0].toFixed(5)},${c[1].toFixed(5)}`).join('|');
+            
+            // Check cache (with expiry)
+            const cached = elevationCache.get(cacheKey);
+            if (cached && (Date.now() - cached.timestamp) < CACHE_EXPIRY_MS) {
+                return cached.elevations;
+            }
+            
+            let lastError = null;
+            
+            // Try each service in order
+            for (const service of ELEVATION_SERVICES) {
+                try {
+                    // Process in batches if needed
+                    const batches = [];
+                    for (let i = 0; i < coordinates.length; i += service.batchSize) {
+                        batches.push(coordinates.slice(i, i + service.batchSize));
+                    }
+                    
+                    const batchResults = [];
+                    
+                    for (const batch of batches) {
+                        const elevations = await service.processor(batch);
+                        batchResults.push(...elevations);
+                        
+                        // Small delay between batches
+                        if (batches.length > 1) await new Promise(r => setTimeout(r, 200));
+                    }
+                    
+                    // Validate we got some data
+                    if (batchResults.some(e => e !== null && e !== undefined)) {
+                        // Store in cache
+                        elevationCache.set(cacheKey, {
+                            elevations: batchResults,
+                            timestamp: Date.now(),
+                            source: service.name
+                        });
+                        
+                        return batchResults;
+                    }
+                    
+                    throw new Error('No valid elevation data returned');
+                    
+                } catch (err) {
+                    console.warn(`[${service.name}] Elevation error:`, err.message);
+                    lastError = err;
+                    continue;
+                }
+            }
+            
+            // All services failed - return null array
+            console.error('All elevation services failed:', lastError);
+            return new Array(coordinates.length).fill(null);
+        }
+
+        async function addElevationData(coordinates) {
+            const elevations = await getElevationWithRetry(coordinates);
+            
+            // Apply elevations to coordinates
+            return coordinates.map((coord, i) => {
+                const elevation = elevations[i] !== null && elevations[i] !== undefined ? 
+                                 elevations[i] : null;
+                return [coord[0], coord[1], elevation];
+            });
+        }
+
+		function haversineDistance(coords1, coords2) { // coords are [lon, lat]
+		    function toRad(x) {
+		        return x * Math.PI / 180;
+		    }
+		    const lon1 = coords1[0];
+		    const lat1 = coords1[1];
+		    const lon2 = coords2[0];
+		    const lat2 = coords2[1];
+
+		    const R = 6371; // Earth's radius in km
+		    const x1 = lat2 - lat1;
+		    const dLat = toRad(x1);
+		    const x2 = lon2 - lon1;
+		    const dLon = toRad(x2);
+		    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+		        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+		        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+		    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+		    return R * c; // distance in km
+		}
+
+		function calculateSmoothedGradient(elevationPoints, targetIndex, config = GRADIENT_CALC_CONFIG) {
+		    const {
+		        directCalcWindowSize, // Number of points defining the direct calculation segment(s)
+		        maxWindowSize,        // Max number of points in the fallback averaging window
+		        validGradientMin,
+		        validGradientMax
+		    } = config;
+
+		    if (!elevationPoints || elevationPoints.length === 0 || targetIndex < 0 || targetIndex >= elevationPoints.length) {
+		        return null;
+		    }
+
+		    // Helper to calculate gradient between two points from elevationPoints array
+		    // p1 and p2 are objects from elevationPoints: { distance: km, elevation: m, originalRouteIndex: num }
+		    const getSegmentGradient = (p2, p1) => {
+		        if (!p1 || !p2 || p1.elevation === null || p2.elevation === null) return null;
+        
+		        const eleDiff = p2.elevation - p1.elevation; // in meters
+		        const distDiffKm = p2.distance - p1.distance; // in kilometers
+
+		        if (distDiffKm <= 0) return null; // Avoid division by zero or nonsensical distance
+        
+		        const distDiffM = distDiffKm * 1000; // Convert distance to meters
+		        return (eleDiff / distDiffM) * 100; // Gradient as percentage
+		    };
+
+		    // 1. Try direct calculation using the most recent segment
+		    if (targetIndex >= 1 && directCalcWindowSize >= 2) { // Need at least targetIndex and targetIndex-1
+		        const p_current = elevationPoints[targetIndex];
+		        const p_previous = elevationPoints[targetIndex - 1];
+
+		        const directGradient = getSegmentGradient(p_current, p_previous);
+		        if (directGradient !== null && directGradient >= validGradientMin && directGradient <= validGradientMax) {
+		            return directGradient;
+		        }
+		    }
+
+		    // 2. Fallback: Use a larger window with decreasing weights for segments
+		    let totalWeightedRise = 0;
+		    let totalWeightedRunMeters = 0; // Ensure run is in meters for weighted sum
+		    let totalEffectiveWeight = 0;
+
+		    // Iterate through possible segments within the maxWindowSize lookback period.
+		    // Segments are (P_k, P_k-1).
+		    // 'i' here represents how many segments "ago" we are looking from the target segment.
+		    // i=0: segment is (elevationPoints[targetIndex], elevationPoints[targetIndex-1])
+		    // i=1: segment is (elevationPoints[targetIndex-1], elevationPoints[targetIndex-2])
+		    // We consider 'maxWindowSize-1' potential segments.
+		    for (let i = 0; i < Math.min(targetIndex, maxWindowSize - 1); i++) {
+		        const currentPointInSegmentIdx = targetIndex - i;
+		        const prevPointInSegmentIdx = targetIndex - i - 1;
+
+		        if (prevPointInSegmentIdx < 0) break; // Should be caught by loop condition, but defensive
+
+		        const p_current_segment = elevationPoints[currentPointInSegmentIdx];
+		        const p_prev_segment = elevationPoints[prevPointInSegmentIdx];
+
+		        // Elevation data should be pre-filtered, but check again
+		        if (!p_current_segment || !p_prev_segment || p_current_segment.elevation === null || p_prev_segment.elevation === null) {
+		            continue;
+		        }
+
+		        const segmentRise = p_current_segment.elevation - p_prev_segment.elevation; // meters
+		        const segmentRunKm = p_current_segment.distance - p_prev_segment.distance; // km
+
+		        if (segmentRunKm <= 0) {
+		            continue; // Skip segment if distance is not positive
+		        }
+		        const segmentRunM = segmentRunKm * 1000; // meters
+
+		        // Weight: fresher segments (smaller 'i') get higher weight.
+		        // Max weight for i=0 is (maxWindowSize - 1). Min weight for i=(maxWindowSize-2) is 1.
+		        const weight = (maxWindowSize - 1) - i;
+
+		        totalWeightedRise += segmentRise * weight;
+		        totalWeightedRunMeters += segmentRunM * weight;
+		        totalEffectiveWeight += weight;
+		    }
+
+		    if (totalEffectiveWeight > 0 && totalWeightedRunMeters !== 0) {
+		        const weightedGradient = (totalWeightedRise / totalWeightedRunMeters) * 100;
+		        return weightedGradient;
+		    }
+
+		    // 3. Final fallback: if no weighted average could be computed (e.g. only one point, or no valid segments in window)
+		    //    try a simple gradient over the largest possible window up to maxWindowSize points, if not already covered.
+		    //    This is essentially an unweighted average over the available span.
+		    if (targetIndex >= 1) {
+		        // Look from targetIndex back up to maxWindowSize points
+		        const firstPointIdx = Math.max(0, targetIndex - maxWindowSize + 1);
+		        const p_first_overall = elevationPoints[firstPointIdx];
+		        const p_last_overall = elevationPoints[targetIndex];
+
+		        if (p_first_overall && p_last_overall && p_first_overall !== p_last_overall) {
+		            const overallGradient = getSegmentGradient(p_last_overall, p_first_overall);
+		            if (overallGradient !== null) return overallGradient;
+		        }
+		    }
+    
+		    return null; // Could not calculate gradient
+		}
+		
+		function createElevationChart(coords, highlightIndex = null) {
+		    // Filter out points with null elevation
+		    const validCoords = coords.filter(coord => coord[2] !== null);
+
+		    if (validCoords.length < 2) return null;
+
+		    // Calculate cumulative distances using haversine formula
+		    const elevations = [];
+		    let totalDistance = 0;
+
+		    // First point
+		    elevations.push({
+		        distance: 0,
+		        elevation: validCoords[0][2],
+		        index: 0,
+		        coord: validCoords[0],
+		        roadType: validCoords[0].roadType || 'unknown' // Add roadType if available
+		    });
+
+		    // Subsequent points
+		    for (let i = 1; i < validCoords.length; i++) {
+		        const prevCoord = validCoords[i-1];
+		        const currCoord = validCoords[i];
+		        const segmentDistance = haversineDistance(prevCoord, currCoord); // in km
+		        totalDistance += segmentDistance;
+
+		        elevations.push({
+		            distance: totalDistance,
+		            elevation: currCoord[2],
+		            index: i,
+		            coord: currCoord,
+		            roadType: currCoord.roadType || 'unknown' // Add roadType if available
+		        });
+		    }
+
+		    const width = 280;
+		    const height = 120;
+		    const margin = { top: 10, right: 20, bottom: 30, left: 50 };
+
+		    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"))
+		         .attr("width", width)
+		         .attr("height", height)
+		         .attr("class", "elevation-svg");
+
+		     // Tooltip setup
+		     const tooltip = svg.append("g")
+		         .attr("class", "tooltip")
+		         .style("opacity", 0);
+
+		     const tooltipText = tooltip.append("text")
+		         .attr("x", 60)
+		         .attr("y", 30)
+		         .attr("text-anchor", "middle")
+		         .style("font-size", "10px")
+		         .style("font-family", "sans-serif");
+
+		    const xScale = d3.scaleLinear()
+		        .domain([0, totalDistance]) // Use actual total distance
+		        .range([margin.left, width - margin.right]);
+
+		    const yScale = d3.scaleLinear()
+		        .domain(d3.extent(elevations, d => d.elevation))
+		        .range([height - margin.bottom, margin.top]);
+
+		    const line = d3.line()
+		        .x(d => xScale(d.distance))
+		        .y(d => yScale(d.elevation))
+		        .curve(d3.curveMonotoneX);
+
+		    // Add gradient
+		    const gradient = svg.append("defs")
+		        .append("linearGradient")
+		        .attr("id", "elevation-gradient")
+		        .attr("gradientUnits", "userSpaceOnUse")
+		        .attr("x1", 0).attr("y1", height)
+		        .attr("x2", 0).attr("y2", 0);
+
+		    gradient.append("stop")
+		        .attr("offset", "0%")
+		        .attr("stop-color", "#4CAF50")
+		        .attr("stop-opacity", 0.8);
+
+		    gradient.append("stop")
+		        .attr("offset", "100%")
+		        .attr("stop-color", "#81C784")
+		        .attr("stop-opacity", 0.3);
+
+		    // Add area under curve
+		    const area = d3.area()
+		        .x(d => xScale(d.distance))
+		        .y0(height - margin.bottom)
+		        .y1(d => yScale(d.elevation))
+		        .curve(d3.curveMonotoneX);
+
+		    svg.append("path")
+		        .datum(elevations)
+		        .attr("fill", "url(#elevation-gradient)")
+		        .attr("d", area);
+
+		    // Add line
+		    svg.append("path")
+		        .datum(elevations)
+		        .attr("fill", "none")
+		        .attr("stroke", "#2196F3")
+		        .attr("stroke-width", 2)
+		        .attr("d", line);
+
+		    // Add highlight point if specified
+		    if (highlightIndex !== null) {
+		        const highlightedPoint = elevations.find(e => e.index === highlightIndex);
+		        if (highlightedPoint) {
+		            svg.append("circle")
+		                .attr("cx", xScale(highlightedPoint.distance))
+		                .attr("cy", yScale(highlightedPoint.elevation))
+		                .attr("r", 4)
+		                .attr("fill", "#555")
+		                .attr("stroke", "white")
+		                .attr("stroke-width", 2);
+		        }
+		    }
+
+		    // Add axes
+		    svg.append("g")
+		        .attr("transform", `translate(0,${height - margin.bottom})`)
+		        .call(d3.axisBottom(xScale).ticks(4).tickFormat(d => `${d.toFixed(1)}km`));
+
+		    svg.append("g")
+		        .attr("transform", `translate(${margin.left},0)`)
+		        .call(d3.axisLeft(yScale).ticks(4).tickFormat(d => `${d}m`));
+
+		    // Hover interaction
+		    svg.append("rect")
+		        .attr("class", "hover-area")
+		        .attr("x", margin.left)
+		        .attr("y", margin.top)
+		        .attr("width", width - margin.left - margin.right)
+		        .attr("height", height - margin.top - margin.bottom)
+		        .attr("fill", "none")
+		        .attr("pointer-events", "all")
+		        .on("mouseover", () => tooltip.style("opacity", 1))
+		        .on("mouseout", () => tooltip.style("opacity", 0))
+		        .on("mousemove", (event) => {
+		            const [x] = d3.pointer(event);
+		            const distance = xScale.invert(x);
+		            const closest = elevations.reduce((prev, curr) => 
+		                Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
+
+		            if (closest.index > 0) {
+		                const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
+                
+		                tooltip.attr("transform", `translate(${xScale(closest.distance)},${yScale(closest.elevation)})`)
+		                    .select("rect")
+		                    .attr("y", -60)
+		                    .attr("height", 70);
+                
+		                // Add road type information to tooltip if available
+		                const roadTypeInfo = closest.roadType && closest.roadType !== 'unknown' ? 
+		                    `<tspan x="60" dy="12">Road: ${closest.roadType}</tspan>` : '';
+                
+		                tooltipText.html(`
+		                    <tspan x="60" dy="-20">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
+		                    <tspan x="60" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
+		                    ${roadTypeInfo}
+		                    <tspan x="60" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
+		                `);
+		            }
+		        });
+
+		    return svg.node();
+		}
+
+		function createElevationChartOld(coords, highlightIndex = null) {
+		    // Filter out points with null elevation
+		    const validCoords = coords.filter(coord => coord[2] !== null);
+    
+		    if (validCoords.length < 2) return null;
+
+		    // Calculate cumulative distances using haversine formula
+		    const elevations = [];
+		    let totalDistance = 0;
+    
+		    // First point
+		    elevations.push({
+		        distance: 0,
+		        elevation: validCoords[0][2],
+		        index: 0,
+		        coord: validCoords[0]
+		    });
+    
+		    // Subsequent points
+		    for (let i = 1; i < validCoords.length; i++) {
+		        const prevCoord = validCoords[i-1];
+		        const currCoord = validCoords[i];
+		        const segmentDistance = haversineDistance(prevCoord, currCoord); // in km
+		        totalDistance += segmentDistance;
+        
+		        elevations.push({
+		            distance: totalDistance,
+		            elevation: currCoord[2],
+		            index: i,
+		            coord: currCoord
+		        });
+		    }
+
+		    const width = 280;
+		    const height = 120;
+		    const margin = { top: 10, right: 20, bottom: 30, left: 50 };
+
+		    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"))
+		         .attr("width", width)
+		         .attr("height", height)
+		         .attr("class", "elevation-svg");
+
+		     // Tooltip setup
+		     const tooltip = svg.append("g")
+		         .attr("class", "tooltip")
+		         .style("opacity", 0);
+
+		     const tooltipText = tooltip.append("text")
+		         .attr("x", 60)
+		         .attr("y", 30)
+		         .attr("text-anchor", "middle")
+		         .style("font-size", "10px")
+		         .style("font-family", "sans-serif");
+
+		    const xScale = d3.scaleLinear()
+		        .domain([0, totalDistance]) // Use actual total distance
+		        .range([margin.left, width - margin.right]);
+
+		    const yScale = d3.scaleLinear()
+		        .domain(d3.extent(elevations, d => d.elevation))
+		        .range([height - margin.bottom, margin.top]);
+
+		    const line = d3.line()
+		        .x(d => xScale(d.distance))
+		        .y(d => yScale(d.elevation))
+		        .curve(d3.curveMonotoneX);
+
+		    // Add gradient
+		    const gradient = svg.append("defs")
+		        .append("linearGradient")
+		        .attr("id", "elevation-gradient")
+		        .attr("gradientUnits", "userSpaceOnUse")
+		        .attr("x1", 0).attr("y1", height)
+		        .attr("x2", 0).attr("y2", 0);
+
+		    gradient.append("stop")
+		        .attr("offset", "0%")
+		        .attr("stop-color", "#4CAF50")
+		        .attr("stop-opacity", 0.8);
+
+		    gradient.append("stop")
+		        .attr("offset", "100%")
+		        .attr("stop-color", "#81C784")
+		        .attr("stop-opacity", 0.3);
+
+		    // Add area under curve
+		    const area = d3.area()
+		        .x(d => xScale(d.distance))
+		        .y0(height - margin.bottom)
+		        .y1(d => yScale(d.elevation))
+		        .curve(d3.curveMonotoneX);
+
+		    svg.append("path")
+		        .datum(elevations)
+		        .attr("fill", "url(#elevation-gradient)")
+		        .attr("d", area);
+
+		    // Add line
+		    svg.append("path")
+		        .datum(elevations)
+		        .attr("fill", "none")
+		        .attr("stroke", "#2196F3")
+		        .attr("stroke-width", 2)
+		        .attr("d", line);
+
+		    // Add highlight point if specified
+		    if (highlightIndex !== null) {
+		        const highlightedPoint = elevations.find(e => e.index === highlightIndex);
+		        if (highlightedPoint) {
+		            svg.append("circle")
+		                .attr("cx", xScale(highlightedPoint.distance))
+		                .attr("cy", yScale(highlightedPoint.elevation))
+		                .attr("r", 4)
+		                .attr("fill", "#555")
+		                .attr("stroke", "white")
+		                .attr("stroke-width", 2);
+		        }
+		    }
+
+		    // Add axes
+		    svg.append("g")
+		        .attr("transform", `translate(0,${height - margin.bottom})`)
+		        .call(d3.axisBottom(xScale).ticks(4).tickFormat(d => `${d.toFixed(1)}km`));
+
+		    svg.append("g")
+		        .attr("transform", `translate(${margin.left},0)`)
+		        .call(d3.axisLeft(yScale).ticks(4).tickFormat(d => `${d}m`));
+
+		    // Hover interaction
+		    svg.append("rect")
+		        .attr("class", "hover-area")
+		        .attr("x", margin.left)
+		        .attr("y", margin.top)
+		        .attr("width", width - margin.left - margin.right)
+		        .attr("height", height - margin.top - margin.bottom)
+		        .attr("fill", "none")
+		        .attr("pointer-events", "all")
+		        .on("mouseover", () => tooltip.style("opacity", 1))
+		        .on("mouseout", () => tooltip.style("opacity", 0))
+			    .on("mousemove", (event) => {
+			        const [x] = d3.pointer(event);
+			        const distance = xScale.invert(x);
+			        const closest = elevations.reduce((prev, curr) => 
+			            Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
+        
+			        if (closest.index > 0) {
+			            const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
+            
+			            tooltip.attr("transform", `translate(${xScale(closest.distance)},${yScale(closest.elevation)})`)
+			                .select("rect")
+			                .attr("y", -60)
+			                .attr("height", 70);
+            
+			            tooltipText.html(`
+			                <tspan x="60" dy="-20">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
+			                <tspan x="60" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
+			                <tspan x="60" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
+			            `);
+			        }
+			    });
+				
+		    return svg.node();
+		}
+		
+		function updateElevationProfile(geometry, highlightIndex = null, roadType = null) {
+		    const elevationDiv = document.getElementById('elevation-profile');
+		    const coords = geometry.coordinates;
+
+		    // Filter out points with null elevation
+		    const validCoords = coords.filter(coord => coord[2] !== null);
+    
+		    if (validCoords.length < 2) {
+		        elevationDiv.innerHTML = `
+		            <div style="padding: 15px;">
+		                <h4 style="margin-bottom: 10px; color: #333;">📈 Elevation Profile</h4>
+		            </div>
+		        `;
+		        return;
+		    }
+
+		    // Calculate cumulative distances
+		    const elevations = [];
+		    let totalDistance = 0;
+    
+		    elevations.push({
+		        distance: 0,
+		        elevation: validCoords[0][2],
+		        index: 0,
+		        coord: validCoords[0]
+		    });
+    
+		    for (let i = 1; i < validCoords.length; i++) {
+		        const prevCoord = validCoords[i-1];
+		        const currCoord = validCoords[i];
+		        const segmentDistance = haversineDistance(prevCoord, currCoord);
+		        totalDistance += segmentDistance;
+        
+		        elevations.push({
+		            distance: totalDistance,
+		            elevation: currCoord[2],
+		            index: i,
+		            coord: currCoord
+		        });
+		    }
+
+		    let gradientInfo = '';
+		    if (highlightIndex !== null && highlightIndex > 0) {
+		        const smoothGrad = calculateSmoothedGradient(elevations, highlightIndex);
+        
+		        gradientInfo = `
+		            <div style="margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.2); border-radius: 6px;">
+		                ${roadType !== 'unknown' ? 
+		                  `Road type: <span style="color: ${ROAD_COLORS[roadType] || '#333'}">${roadType}</span><br>` : ''}
+		                <table style="width:100%; font-size:12px; margin-top:4px;">
+		                    <tr>
+		                        <td>gradient:</td>
+		                        <td style="text-align:right;">
+		                            ${smoothGrad ? smoothGrad.toFixed(1)+'%' : 'N/A'} 
+		                            ${smoothGrad > 0 ? '↑' : smoothGrad < 0 ? '↓' : '→'}
+		                        </td>
+		                    </tr>
+		                </table>
+		            </div>
+		        `;
+		    }
+
+		    const chart = createElevationChart(coords, highlightIndex);
+    
+		    elevationDiv.innerHTML = `
+		        <div style="padding: 15px;">
+		            <h4 style="margin-bottom: 10px; color: #333;">📈 Elevation Profile</h4>
+		            <div style="margin-top: 10px; font-size: 12px;">
+            ${gradientInfo}
+		            </div>
+		        </div>
+		    `;
+    
+		    if (chart) elevationDiv.appendChild(chart);
+		}
+			
+        async function getRoadTypesForCoordinates(coords) {
+            if (!coords || coords.length === 0) return [];
+            
+            const lats = coords.map(c => c[1]);
+            const lons = coords.map(c => c[0]);
+            const bbox = [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)].join(',');
+            
+            const query = `
+                [out:json][bbox:${bbox}];
+                way[highway~"^(motorway|trunk|primary|secondary|tertiary|residential|service|track)"];
+                out body;
+                >;
+                out skel qt;
+            `;
+            
+            try {
+                const response = await fetch(`https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                return data.elements || [];
+            } catch (err) {
+                console.warn("Overpass query failed, using default colors", err);
+                return [];
+            }
+        }
+
+		function findClosestPointOnRoute(mouseLatLng, routeCoords, roadElements) {
+		    if (!routeCoords || routeCoords.length === 0) return null;
+
+		    let closestDistance = Infinity;
+		    let closestPoint = null;
+		    let closestIndex = 0;
+		    let roadType = 'unknown';
+    
+		    // Convert road elements to LatLng arrays for easier comparison
+		    const roadSegments = (roadElements || []).map(el => ({
+		        type: el.tags?.highway || 'unknown',
+		        points: (el.geometry || []).map(p => L.latLng(p.lat, p.lon))
+		    }));
+
+		    for (let i = 0; i < routeCoords.length; i++) {
+		        const coord = routeCoords[i];
+		        if (!coord || coord.length < 2) continue;
+        
+		        const pointLatLng = L.latLng(coord[1], coord[0]);
+		        const distance = mouseLatLng.distanceTo(pointLatLng);
+        
+		        if (distance < closestDistance) {
+		            closestDistance = distance;
+		            closestPoint = pointLatLng;
+		            closestIndex = i;
+            
+		            // Find road type by checking proximity to known segments
+		            if (roadSegments.length > 0) {
+		                for (const segment of roadSegments) {
+		                    for (const segmentPoint of segment.points) {
+		                        if (pointLatLng.distanceTo(segmentPoint) < 20) { // 20 meter threshold
+		                            roadType = segment.type;
+		                            break;
+		                        }
+		                    }
+		                    if (roadType !== 'unknown') break;
+		                }
+		            }
+		        }
+		    }
+    
+		    return closestPoint ? {
+		        latlng: closestPoint,
+		        index: closestIndex,
+		        distance: closestDistance,
+		        roadType: roadType
+		    } : null;
+		}
+		
+		function findRoadSegmentForPoint(coord, roadElements) {
+		    // Simple implementation - finds first road element containing this point
+		    // In a real app, you'd want more precise spatial matching
+		    const [lon, lat] = coord;
+		    return roadElements.find(el => {
+		        if (!el.geometry) return false;
+		        return el.geometry.some(point => 
+		            Math.abs(point.lon - lon) < 0.0001 && 
+		            Math.abs(point.lat - lat) < 0.0001
+		        );
+		    });
+		}
+		
+		function styleRouteWithRoadTypes(geometry, roadElements) {
+		    if (route) map.removeLayer(route);
+    
+		    let roadType = 'default';
+		    let color = ROAD_COLORS.default;
+    
+		    if (roadElements && roadElements.length > 0) {
+		        const highways = roadElements.filter(el => el.tags && el.tags.highway);
+		        if (highways.length > 0) {
+		            roadType = highways[0].tags.highway;
+		            color = ROAD_COLORS[roadType] || ROAD_COLORS.default;
+		        }
+		    }
+    
+		    route = L.geoJSON(geometry, {
+		        style: {
+		            color: color,
+		            weight: 5,
+		            opacity: 0.8,
+		            lineCap: 'round',
+		            lineJoin: 'round'
+		        }
+		    }).addTo(map);
+    
+		    // Add route interaction
+		    route.on('mouseover', function(e) {
+		        this.setStyle({
+		            weight: 7,
+		            opacity: 1
+		        });
+		    });
+    
+		    route.on('mouseout', function(e) {
+		        this.setStyle({
+		            weight: 5,
+		            opacity: 0.8
+		        });
+        
+		        // Remove hover markers
+		        if (hoverMarker) {
+		            map.removeLayer(hoverMarker);
+		            hoverMarker = null;
+		        }
+		        updateElevationProfile(geometry); // Reset elevation profile
+		    });
+    
+			route.on('mousemove', function(e) {
+			    if (!currentRouteData || !currentRouteData.geometry) {
+			        return;
+			    }
+    
+			    const roadElements = currentRouteData.roadElements || [];
+			    const closestPoint = findClosestPointOnRoute(
+			        e.latlng, 
+			        currentRouteData.geometry.coordinates,
+			        roadElements
+			    );
+    
+			    if (!closestPoint) return;
+    
+			    if (!hoverMarker) {
+			        hoverMarker = L.marker(closestPoint.latlng, { 
+			            icon: hoverPointIcon,
+			            zIndexOffset: 1000,
+			            interactive: false
+			        }).addTo(map);
+			    } else {
+			        hoverMarker.setLatLng(closestPoint.latlng);
+			    }
+    
+			    updateElevationProfile(
+			        currentRouteData.geometry, 
+			        closestPoint.index,
+			        closestPoint.roadType
+			    );
+			});
+		}
+				
+        function styleRouteWithRoadTypesOld(geometry, roadElements) {
+            if (route) map.removeLayer(route);
+            
+            let roadType = 'default';
+            let color = ROAD_COLORS.default;
+            
+            if (roadElements && roadElements.length > 0) {
+                const highways = roadElements.filter(el => el.tags && el.tags.highway);
+                if (highways.length > 0) {
+                    roadType = highways[0].tags.highway;
+                    color = ROAD_COLORS[roadType] || ROAD_COLORS.default;
+                }
+            }
+            
+            route = L.geoJSON(geometry, {
+                style: {
+                    color: color,
+                    weight: 5,
+                    opacity: 0.8,
+                    lineCap: 'round',
+                    lineJoin: 'round'
+                }
+            }).addTo(map);
+            
+            // Add route interaction
+            route.on('mouseover', function(e) {
+                this.setStyle({
+                    weight: 7,
+                    opacity: 1
+                });
+            });
+            
+            route.on('mouseout', function(e) {
+                this.setStyle({
+                    weight: 5,
+                    opacity: 0.8
+                });
+            });
+        }
+
+		async function calculateRoute() {
+		    if (markers.length < 2) {
+		        document.getElementById('route-info').innerHTML = '⚠️ Add at least 2 points to create a route';
+		        return;
+		    }
+
+		    const coordinates = markers.map(marker => 
+		        `${marker.getLatLng().lng},${marker.getLatLng().lat}`
+		    ).join(';');
+
+		    try {
+		        document.getElementById('route-info').innerHTML = '🔄 Calculating route...';
+		        document.getElementById('export-gpx').disabled = true;
+        
+		        // Fetch route first
+		        const response = await fetch(`https://router.project-osrm.org/route/v1/cycling/${coordinates}?overview=full&geometries=geojson&steps=true`);
+        
+		        if (!response.ok) throw new Error('Network response was not ok');
+        
+		        const data = await response.json();
+        
+		        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0) {
+		            throw new Error(data.message || 'No route found - try different points');
+		        }
+
+		        const routeData = data.routes[0];
+		        if (!routeData.geometry || !routeData.geometry.coordinates || routeData.geometry.coordinates.length < 2) {
+		            throw new Error('Invalid route geometry data');
+		        }
+
+		        // Store the complete route data
+		        currentRouteData = routeData;
+        
+		        // Show elevation loading state
+		        document.getElementById('route-info').innerHTML = '🔄 Fetching elevation data...';
+        
+		        // Enhance with elevation data
+		        routeData.geometry.coordinates = await addElevationData(routeData.geometry.coordinates);
+        
+		        // Get road types AFTER we have the final coordinates
+		        const routeCoords = routeData.geometry.coordinates;
+		        const roadElements = await getRoadTypesForCoordinates(routeCoords);
+        
+		        // Store road elements in the route data
+		        currentRouteData.roadElements = roadElements;
+        
+		        styleRouteWithRoadTypes(routeData.geometry, roadElements);
+		        updateElevationProfile(routeData.geometry);
+        
+		        const distance = (routeData.distance / 1000).toFixed(2);
+		        document.getElementById('route-info').innerHTML = `
+		            <div style="text-align: center;">
+		                <h4 style="margin-bottom: 8px; color: #333;">🚴‍♂️ Route Info</h4>
+		                <div><strong>Distance:</strong> ${distance} km</div>
+		            </div>
+		        `;
+        
+		        document.getElementById('export-gpx').disabled = false;
+
+		    } catch (err) {
+		        console.error("Routing error:", err);
+		        document.getElementById('route-info').innerHTML = '❌ ' + (err.message || 'Routing failed. Try different points.');
+		        document.getElementById('export-gpx').disabled = false;
+        
+		        // Fallback: draw straight lines between markers
+		        const lineCoords = markers.map(marker => {
+		            const latlng = marker.getLatLng();
+		            return [latlng.lng, latlng.lat, 0];
+		        });
+        
+		        if (markers.length >= 2 && 
+		            markers[0].getLatLng().equals(markers[markers.length-1].getLatLng())) {
+		            lineCoords.push([...lineCoords[0]]);
+		        }
+        
+		        const fallbackRoute = {
+		            type: "LineString",
+		            coordinates: lineCoords
+		        };
+        
+		        currentRouteData = {
+		            geometry: fallbackRoute,
+		            distance: calculateStraightLineDistance(markers),
+		            roadElements: [] // Initialize empty road elements
+		        };
+        
+		        styleRouteWithRoadTypes(fallbackRoute, []);
+		        updateElevationProfile(fallbackRoute);
+		    }
+		}
+		
+        function calculateStraightLineDistance(markers) {
+            let totalDistance = 0;
+            for (let i = 1; i < markers.length; i++) {
+                const prev = markers[i-1].getLatLng();
+                const curr = markers[i].getLatLng();
+                totalDistance += map.distance(prev, curr);
+            }
+            return totalDistance;
+        }
+
+		// Map layers
+		const baseLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+		    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+		});
+
+		const satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+		    attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+		    opacity: 0.95
+		});
+
+		const hybridLayer = L.layerGroup([baseLayer, satelliteLayer]);
+
+		const terrainLayer = L.tileLayer('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png', {
+		    attribution: 'Map data: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: © <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+		    opacity: 0.7
+		});
+		//const terrainLayer = L.tileLayer('https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}{r}.{ext}', {
+		    //attribution: 'Map tiles by <a href="http://stamen.com">Stamen Design</a>, under <a href="http://creativecommons.org/licenses/by/3.0">CC BY 3.0</a>. Data by <a href="http://openstreetmap.org">OpenStreetMap</a>, under <a href="http://www.openstreetmap.org/copyright">ODbL</a>.',
+		    //ext: 'png',
+		    //opacity: 0.5
+			//});
+
+		// Add base layer by default
+		baseLayer.addTo(map);
+
+		// Layer control handlers
+		document.getElementById('default-layer').addEventListener('click', function() {
+		    map.eachLayer(layer => map.removeLayer(layer));
+		    baseLayer.addTo(map);
+		    markers.forEach(marker => marker.addTo(map));
+		    if (route) route.addTo(map);
+		});
+
+		document.getElementById('satellite-layer').addEventListener('click', function() {
+		    map.eachLayer(layer => map.removeLayer(layer));
+		    satelliteLayer.addTo(map);
+		    markers.forEach(marker => marker.addTo(map));
+		    if (route) route.addTo(map);
+		});
+
+		document.getElementById('hybrid-layer').addEventListener('click', function() {
+		    map.eachLayer(layer => map.removeLayer(layer));
+		    hybridLayer.addTo(map);
+		    markers.forEach(marker => marker.addTo(map));
+		    if (route) route.addTo(map);
+		});
+
+		document.getElementById('terrain-layer').addEventListener('click', function() {
+		    map.eachLayer(layer => map.removeLayer(layer));
+		    currentBaseLayer = terrainLayer;
+		    terrainLayer.addTo(map);
+    
+		    // Re-add markers and route
+		    markers.forEach(marker => marker.addTo(map));
+		    if (route) route.addTo(map);
+    
+		    // Force a redraw if tiles aren't loading
+		    setTimeout(() => {
+		        map.invalidateSize();
+		    }, 100);
+		});
+		
+		// Add this after creating the terrain layer
+		terrainLayer.on('tileerror', function(e) {
+		    console.warn('Failed to load terrain tile:', e.url);
+		    // You could add fallback logic here
+		});
+
+		terrainLayer.on('load', function() {
+		    console.log('Terrain tiles loaded successfully');
+		});
+		
+        // Map click handler
+        map.on('click', function(e) {
+            let marker;
+            
+            if (markers.length === 0) {
+                marker = L.marker(e.latlng, { icon: startIcon, draggable: true }).addTo(map);
+            } else {
+                marker = L.marker(e.latlng, { icon: checkpointIcon, draggable: true }).addTo(map);
+            }
+            
+            markers.push(marker);
+            marker.on('dragend', calculateRoute);
+            
+            if (markers.length >= 2) {
+                calculateRoute();
+            }
+        });
+
+        // Control buttons
+        document.getElementById('undo-last').addEventListener('click', function() {
+            if (markers.length === 0) return;
+            
+            const lastMarker = markers.pop();
+            map.removeLayer(lastMarker);
+            currentRouteData = null; // Clear current route
+            
+            if (markers.length >= 2) {
+                calculateRoute();
+            } else if (route) {
+                map.removeLayer(route);
+                route = null;
+                document.getElementById('route-info').innerHTML = '';
+                document.getElementById('elevation-profile').innerHTML = '';
+            }
+        });
+
+        document.getElementById('new-track').addEventListener('click', function() {
+            const currentZoom = map.getZoom();
+            const currentCenter = map.getCenter();
+            
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            
+            if (route) map.removeLayer(route);
+            route = null;
+            
+            if (hoverMarker) map.removeLayer(hoverMarker);
+            hoverMarker = null;
+            
+            currentRouteData = null;
+            
+            document.getElementById('route-info').innerHTML = '';
+            document.getElementById('elevation-profile').innerHTML = '';
+            
+            map.setView(currentCenter, currentZoom);
+        });
+
+        document.getElementById('find-location').addEventListener('click', function() {
+            map.locate({
+                setView: false,
+                maxZoom: 13,
+                timeout: 10000
+            });
+        });
+        
+        document.getElementById('round-trip').addEventListener('click', function() {
+            if (markers.length < 2) {
+                alert('Please create a route with at least 2 points first');
+                return;
+            }
+    
+            // Add a copy of the first marker at the end
+            const firstMarker = markers[0];
+            const newMarker = L.marker(firstMarker.getLatLng(), { 
+                icon: checkpointIcon, 
+                draggable: true 
+            }).addTo(map);
+    
+            markers.push(newMarker);
+            newMarker.on('dragend', calculateRoute);
+    
+            calculateRoute();
+        });
+
+        document.getElementById('export-gpx').addEventListener('click', async function() {
+            try {
+                // Check if we have route data to export
+                if (!currentRouteData || !currentRouteData.geometry || currentRouteData.geometry.coordinates.length < 2) {
+                    throw new Error('No valid route to export');
+                }
+
+                // Show loading state
+                const originalText = this.innerHTML;
+                this.innerHTML = '⏳ Exporting...';
+                this.disabled = true;
+
+                // Use the full route geometry from currentRouteData
+                const coordinates = currentRouteData.geometry.coordinates;
+
+                // Generate GPX content
+                let gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Bike Route Planner" xmlns="http://www.topografix.com/GPX/1/1">
+    <metadata>
+        <name>Bike Route</name>
+        <desc>Route created with Bike Route Planner</desc>
+        <time>${new Date().toISOString()}</time>
+    </metadata>
+    <trk>
+        <name>Bike Route</name>
+        <trkseg>`;
+
+                coordinates.forEach(coord => {
+                    const lon = coord[0];
+                    const lat = coord[1];
+                    const ele = coord.length >= 3 ? coord[2] : null;
+                    
+                    gpx += `\n            <trkpt lat="${lat}" lon="${lon}">`;
+                    if (ele !== null && !isNaN(ele)) {
+                        gpx += `<ele>${ele}</ele>`;
+                    }
+                    gpx += `</trkpt>`;
+                });
+
+                gpx += `\n        </trkseg>
+    </trk>
+</gpx>`;
+
+                // Create and trigger download
+                const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `bike_route_${new Date().toISOString().slice(0,10)}.gpx`;
+                document.body.appendChild(a);
+                a.click();
+        
+                // Clean up
+                setTimeout(() => {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    this.innerHTML = originalText;
+                    this.disabled = false;
+                }, 100);
+        
+            } catch (err) {
+                console.error('GPX export failed:', err);
+                alert('Export Error: ' + err.message);
+                this.innerHTML = '📁 Export GPX';
+                this.disabled = false;
+            }
+        });
+
+        // Geolocation handlers
+        map.on('locationfound', function(e) {
+            const radius = e.accuracy / 2;
+            
+            L.circle(e.latlng, radius, {
+                color: '#4CAF50',
+                fillColor: '#4CAF50',
+                fillOpacity: 0.15,
+                weight: 2
+            }).addTo(map);
+            
+            L.marker(e.latlng, {
+                icon: L.divIcon({
+                    className: 'user-location-marker',
+                    html: '📍',
+                    iconSize: [25, 25]
+                })
+            }).addTo(map).bindPopup("📍 You are here!").openPopup();
+            
+            // Auto-add as first marker if none exist
+            if (markers.length === 0) {
+                const marker = L.marker(e.latlng, {
+                    draggable: true,
+                    icon: startIcon
+                }).addTo(map);
+                markers.push(marker);
+                marker.on('dragend', calculateRoute);
+            }
+        });
+
+        map.on('locationerror', function(e) {
+            console.warn("Geolocation error:", e.message);
+            alert("Could not find your location. You can still click on the map to set your starting point.");
+        });
+        
+        // Hide loading overlay when everything is ready
+        setTimeout(() => {
+            document.getElementById('loading-overlay').style.display = 'none';
+        }, 1000);
+
+        // Add filter change handlers (for future implementation)
+        document.querySelectorAll('#road-filters input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                if (markers.length >= 2) {
+                    calculateRoute();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
