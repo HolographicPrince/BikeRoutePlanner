@@ -103,6 +103,10 @@
 		    color: #555;
 		    text-shadow: 0 0 3px white;
 		    pointer-events: none;
+		}		
+
+		.hover-area {
+		    cursor: crosshair;
 		}
 		
 		.elevation-svg .tooltip {
@@ -121,10 +125,6 @@
 
 		.elevation-svg .tooltip tspan {
 		    font-size: 10px;
-		}
-
-		.hover-area {
-		    cursor: crosshair;
 		}
 		
 		.elevation-svg .tooltip rect {
@@ -175,7 +175,7 @@
 	    }
     
 	    .elevation-stat-label {
-	        color: #666;
+	        color: #667;
 	    }
     
 	    .elevation-stat-value {
@@ -288,18 +288,6 @@
 		    transform: translateY(0);
 		}
 
-		@media (max-width: 768px) {
-		    #map-layers {
-		        top: 1200px;
-		        left: 10px;
-		    }
-    
-		    #map-layers button {
-		        padding: 6px 10px;
-		        font-size: 12px;
-		    }
-		}
-
         .start-marker, .checkpoint-marker, .hover-marker, .user-location-marker {
             display: flex;
             align-items: center;
@@ -337,7 +325,17 @@
                 font-size: 14px;
                 padding: 10px 15px;
             }
-            
+
+		    #map-layers {
+		        top: 1200px;
+		        left: 10px;
+		    }
+    
+		    #map-layers button {
+		        padding: 6px 10px;
+		        font-size: 12px;
+		    }
+			            
             #road-filters {
                 right: 10px;
                 top: 10px;
@@ -450,7 +448,6 @@
             'default': '#0078A8'        
         };
 		
-		// Configuration for the new gradient calculation
 		const GRADIENT_CALC_CONFIG = {
 		    directCalcWindowSize: 2,   // Number of points for the initial "direct" gradient calc (uses the segment between targetIndex and targetIndex-1)
 		    maxWindowSize: 20,          // Max number of points in the fallback weighted window (this means up to maxWindowSize-1 segments)
@@ -861,13 +858,14 @@
 		        .attr("class", "tooltip")
 		        .style("opacity", 0);
 
-		    tooltip.append("rect")
-		        .attr("width", 130)
-		        .attr("height", 80)
-		        .attr("fill", "rgba(255,255,255,0.9)")
-		        .attr("stroke", "#666")
-		        .attr("rx", 4)
-		        .attr("ry", 4);
+			// togliere per non avere il frame bianco
+		    //tooltip.append("rect")
+		    //    .attr("width", 130)
+		    //    .attr("height", 80)
+		    //    .attr("fill", "rgba(255,255,255,0.9)")
+		    //    .attr("stroke", "#666")
+		    //    .attr("rx", 4)
+		    //    .attr("ry", 4);
 
 		    const tooltipText = tooltip.append("text")
 		        .attr("x", 65)
