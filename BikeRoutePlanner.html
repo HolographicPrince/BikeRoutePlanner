@@ -115,30 +115,29 @@
 		}
 
 		.elevation-svg .tooltip rect {
-		    fill: rgba(255, 255, 255, 0.9);
+		    fill: rgba(255, 255, 255, 0.95);
 		    stroke: #666;
+		    stroke-width: 1px;
+		    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
 		}
 
 		.elevation-svg .tooltip text {
 		    fill: #333;
+		    font-size: 10px;
+		    font-weight: 500;
 		}
 
 		.elevation-svg .tooltip tspan {
 		    font-size: 10px;
 		}
-		
-		.elevation-svg .tooltip rect {
-		    width: 130px;
-		    height: 80px;
+		.elevation-svg .tooltip {
+		    pointer-events: none;
+		    transition: opacity 0.2s;
 		}
 
-		.elevation-svg .tooltip text {
-		    font-size: 10px;
-		    fill: #333;
-		}
-
-		.elevation-svg .tooltip tspan {
-		    font-size: 10px;
+		.tooltip-connector {
+		    pointer-events: none;
+		    stroke-opacity: 0.7;
 		}
 		
 	    .elevation-chart-container {
@@ -319,6 +318,14 @@
             font-size: 18px;
             backdrop-filter: blur(5px);
         }
+		
+		.highlight-line {
+		    pointer-events: none;
+		}
+
+		.highlight-point {
+		    pointer-events: none;
+		}
 
         @media (max-width: 768px) {
             .status {
@@ -556,7 +563,7 @@
                         batchResults.push(...elevations);
                         
                         // Small delay between batches
-                        if (batches.length > 1) await new Promise(r => setTimeout(r, 200));
+                        if (batches.length > 1) await new Promise(r => setTimeout(r, 100));
                     }
                     
                     // Validate we got some data
@@ -853,391 +860,141 @@
 		        .attr("fill", "none")
 		        .attr("pointer-events", "all");
 
-		    // Tooltip setup
-		    const tooltip = svg.append("g")
-		        .attr("class", "tooltip")
+		    const highlightLine = svg.append("line")
+		        .attr("class", "highlight-line")
+		        .attr("stroke", "#FF5722")
+		        .attr("stroke-width", 1)
+		        .attr("stroke-dasharray", "3,3")
+		        .attr("x1", margin.left)
+		        .attr("x2", width - margin.right)
 		        .style("opacity", 0);
 
-			// togliere per non avere il frame bianco
-		    //tooltip.append("rect")
-		    //    .attr("width", 130)
-		    //    .attr("height", 80)
-		    //    .attr("fill", "rgba(255,255,255,0.9)")
-		    //    .attr("stroke", "#666")
-		    //    .attr("rx", 4)
-		    //    .attr("ry", 4);
-
-		    const tooltipText = tooltip.append("text")
-		        .attr("x", 65)
-		        .attr("y", 20)
-		        .attr("text-anchor", "middle")
-		        .style("font-size", "10px")
-		        .style("font-family", "sans-serif");
-
-		    hoverArea.on("mouseover", () => tooltip.style("opacity", 1))
-		        .on("mouseout", () => tooltip.style("opacity", 0))
-		        .on("mousemove", (event) => {
-		            const [x] = d3.pointer(event);
-		            const distance = xScale.invert(x);
-		            const closest = elevations.reduce((prev, curr) => 
-		                Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
-
-		            if (closest.index > 0) {
-		                const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
-                
-		                tooltip.attr("transform", `translate(${xScale(closest.distance)},${yScale(closest.elevation)})`)
-		                    .select("rect")
-		                    .attr("y", -70)
-		                    .attr("height", 70);
-                
-		                tooltipText.html(`
-		                    <tspan x="65" dy="-30">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
-		                    <tspan x="65" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
-		                    <tspan x="65" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
-		                    ${closest.roadType && closest.roadType !== 'unknown' ? 
-		                      `<tspan x="65" dy="12">Road: ${closest.roadType}</tspan>` : ''}
-		                `);
-		            }
-		        });
-
-		    return svg.node();
-		}
-		
-		function createElevationChart2(coords, highlightIndex = null) {
-		    // Filter out points with null elevation
-		    const validCoords = coords.filter(coord => coord[2] !== null);
-
-		    if (validCoords.length < 2) return null;
-
-		    // Calculate cumulative distances using haversine formula
-		    const elevations = [];
-		    let totalDistance = 0;
-
-		    // First point
-		    elevations.push({
-		        distance: 0,
-		        elevation: validCoords[0][2],
-		        index: 0,
-		        coord: validCoords[0],
-		        roadType: validCoords[0].roadType || 'unknown' // Add roadType if available
-		    });
-
-		    // Subsequent points
-		    for (let i = 1; i < validCoords.length; i++) {
-		        const prevCoord = validCoords[i-1];
-		        const currCoord = validCoords[i];
-		        const segmentDistance = haversineDistance(prevCoord, currCoord); // in km
-		        totalDistance += segmentDistance;
-
-		        elevations.push({
-		            distance: totalDistance,
-		            elevation: currCoord[2],
-		            index: i,
-		            coord: currCoord,
-		            roadType: currCoord.roadType || 'unknown' // Add roadType if available
-		        });
-		    }
-
-		    const width = 280;
-		    const height = 120;
-		    const margin = { top: 10, right: 20, bottom: 30, left: 50 };
-
-		    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"))
-		         .attr("width", width)
-		         .attr("height", height)
-		         .attr("class", "elevation-svg");
-
-		     // Tooltip setup
-		     const tooltip = svg.append("g")
-		         .attr("class", "tooltip")
-		         .style("opacity", 0);
-
-		     const tooltipText = tooltip.append("text")
-		         .attr("x", 60)
-		         .attr("y", 30)
-		         .attr("text-anchor", "middle")
-		         .style("font-size", "10px")
-		         .style("font-family", "sans-serif");
-
-		    const xScale = d3.scaleLinear()
-		        .domain([0, totalDistance]) // Use actual total distance
-		        .range([margin.left, width - margin.right]);
-
-		    const yScale = d3.scaleLinear()
-		        .domain(d3.extent(elevations, d => d.elevation))
-		        .range([height - margin.bottom, margin.top]);
-
-		    const line = d3.line()
-		        .x(d => xScale(d.distance))
-		        .y(d => yScale(d.elevation))
-		        .curve(d3.curveMonotoneX);
-
-		    // Add gradient
-		    const gradient = svg.append("defs")
-		        .append("linearGradient")
-		        .attr("id", "elevation-gradient")
-		        .attr("gradientUnits", "userSpaceOnUse")
-		        .attr("x1", 0).attr("y1", height)
-		        .attr("x2", 0).attr("y2", 0);
-
-		    gradient.append("stop")
-		        .attr("offset", "0%")
-		        .attr("stop-color", "#4CAF50")
-		        .attr("stop-opacity", 0.8);
-
-		    gradient.append("stop")
-		        .attr("offset", "100%")
-		        .attr("stop-color", "#81C784")
-		        .attr("stop-opacity", 0.3);
-
-		    // Add area under curve
-		    const area = d3.area()
-		        .x(d => xScale(d.distance))
-		        .y0(height - margin.bottom)
-		        .y1(d => yScale(d.elevation))
-		        .curve(d3.curveMonotoneX);
-
-		    svg.append("path")
-		        .datum(elevations)
-		        .attr("fill", "url(#elevation-gradient)")
-		        .attr("d", area);
-
-		    // Add line
-		    svg.append("path")
-		        .datum(elevations)
-		        .attr("fill", "none")
-		        .attr("stroke", "#2196F3")
+		    // Add highlight point
+		    const highlightPoint = svg.append("circle")
+		        .attr("class", "highlight-point")
+		        .attr("r", 5)
+		        .attr("fill", "#FF5722")
+		        .attr("stroke", "white")
 		        .attr("stroke-width", 2)
-		        .attr("d", line);
+		        .style("opacity", 0);
 
-		    // Add highlight point if specified
-		    if (highlightIndex !== null) {
-		        const highlightedPoint = elevations.find(e => e.index === highlightIndex);
-		        if (highlightedPoint) {
-		            svg.append("circle")
-		                .attr("cx", xScale(highlightedPoint.distance))
-		                .attr("cy", yScale(highlightedPoint.elevation))
-		                .attr("r", 4)
-		                .attr("fill", "#555")
-		                .attr("stroke", "white")
-		                .attr("stroke-width", 2);
-		        }
+		    // Update highlight if index is provided
+		    if (highlightIndex !== null && highlightIndex >= 0 && highlightIndex < elevations.length) {
+		        const highlighted = elevations[highlightIndex];
+		        const xPos = xScale(highlighted.distance);
+		        const yPos = yScale(highlighted.elevation);
+
+		        highlightLine
+		            .attr("y1", yPos)
+		            .attr("y2", yPos)
+		            .style("opacity", 1);
+
+		        highlightPoint
+		            .attr("cx", xPos)
+		            .attr("cy", yPos)
+		            .style("opacity", 1);
 		    }
 
-		    // Add axes
-		    svg.append("g")
-		        .attr("transform", `translate(0,${height - margin.bottom})`)
-		        .call(d3.axisBottom(xScale).ticks(4).tickFormat(d => `${d.toFixed(1)}km`));
+		    // Tooltip setup
+			// togliere "rect" per non avere il frame bianco
+			const tooltip = svg.append("g")
+				.attr("class", "tooltip")
+				.style("opacity", 0);
 
-		    svg.append("g")
-		        .attr("transform", `translate(${margin.left},0)`)
-		        .call(d3.axisLeft(yScale).ticks(4).tickFormat(d => `${d}m`));
+			const tooltipText = tooltip.append("text")
+				.attr("x", 65)
+				.attr("y", 20)
+				.attr("text-anchor", "middle")
+				.style("font-size", "10px")
+				.style("font-family", "sans-serif");
 
-		    // Hover interaction
-		    svg.append("rect")
-		        .attr("class", "hover-area")
-		        .attr("x", margin.left)
-		        .attr("y", margin.top)
-		        .attr("width", width - margin.left - margin.right)
-		        .attr("height", height - margin.top - margin.bottom)
-		        .attr("fill", "none")
-		        .attr("pointer-events", "all")
-		        .on("mouseover", () => tooltip.style("opacity", 1))
-		        .on("mouseout", () => tooltip.style("opacity", 0))
-		        .on("mousemove", (event) => {
-		            const [x] = d3.pointer(event);
-		            const distance = xScale.invert(x);
-		            const closest = elevations.reduce((prev, curr) => 
-		                Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
-
-		            if (closest.index > 0) {
-		                const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
-                
-		                tooltip.attr("transform", `translate(${xScale(closest.distance)},${yScale(closest.elevation)})`)
-		                    .select("rect")
-		                    .attr("y", -60)
-		                    .attr("height", 70);
-                
-		                // Add road type information to tooltip if available
-		                const roadTypeInfo = closest.roadType && closest.roadType !== 'unknown' ? 
-		                    `<tspan x="60" dy="12">Road: ${closest.roadType}</tspan>` : '';
-                
-		                tooltipText.html(`
-		                    <tspan x="60" dy="-20">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
-		                    <tspan x="60" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
-		                    ${roadTypeInfo}
-		                    <tspan x="60" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
-		                `);
-		            }
-		        });
-
-		    return svg.node();
-		}
-
-		function createElevationChart1(coords, highlightIndex = null) {
-		    // Filter out points with null elevation
-		    const validCoords = coords.filter(coord => coord[2] !== null);
-    
-		    if (validCoords.length < 2) return null;
-
-		    // Calculate cumulative distances using haversine formula
-		    const elevations = [];
-		    let totalDistance = 0;
-    
-		    // First point
-		    elevations.push({
-		        distance: 0,
-		        elevation: validCoords[0][2],
-		        index: 0,
-		        coord: validCoords[0]
-		    });
-    
-		    // Subsequent points
-		    for (let i = 1; i < validCoords.length; i++) {
-		        const prevCoord = validCoords[i-1];
-		        const currCoord = validCoords[i];
-		        const segmentDistance = haversineDistance(prevCoord, currCoord); // in km
-		        totalDistance += segmentDistance;
-        
-		        elevations.push({
-		            distance: totalDistance,
-		            elevation: currCoord[2],
-		            index: i,
-		            coord: currCoord
-		        });
-		    }
-
-		    const width = 280;
-		    const height = 120;
-		    const margin = { top: 10, right: 20, bottom: 30, left: 50 };
-
-		    const svg = d3.select(document.createElementNS("http://www.w3.org/2000/svg", "svg"))
-		         .attr("width", width)
-		         .attr("height", height)
-		         .attr("class", "elevation-svg");
-
-		     // Tooltip setup
-		     const tooltip = svg.append("g")
-		         .attr("class", "tooltip")
-		         .style("opacity", 0);
-
-		     const tooltipText = tooltip.append("text")
-		         .attr("x", 60)
-		         .attr("y", 30)
-		         .attr("text-anchor", "middle")
-		         .style("font-size", "10px")
-		         .style("font-family", "sans-serif");
-
-		    const xScale = d3.scaleLinear()
-		        .domain([0, totalDistance]) // Use actual total distance
-		        .range([margin.left, width - margin.right]);
-
-		    const yScale = d3.scaleLinear()
-		        .domain(d3.extent(elevations, d => d.elevation))
-		        .range([height - margin.bottom, margin.top]);
-
-		    const line = d3.line()
-		        .x(d => xScale(d.distance))
-		        .y(d => yScale(d.elevation))
-		        .curve(d3.curveMonotoneX);
-
-		    // Add gradient
-		    const gradient = svg.append("defs")
-		        .append("linearGradient")
-		        .attr("id", "elevation-gradient")
-		        .attr("gradientUnits", "userSpaceOnUse")
-		        .attr("x1", 0).attr("y1", height)
-		        .attr("x2", 0).attr("y2", 0);
-
-		    gradient.append("stop")
-		        .attr("offset", "0%")
-		        .attr("stop-color", "#4CAF50")
-		        .attr("stop-opacity", 0.8);
-
-		    gradient.append("stop")
-		        .attr("offset", "100%")
-		        .attr("stop-color", "#81C784")
-		        .attr("stop-opacity", 0.3);
-
-		    // Add area under curve
-		    const area = d3.area()
-		        .x(d => xScale(d.distance))
-		        .y0(height - margin.bottom)
-		        .y1(d => yScale(d.elevation))
-		        .curve(d3.curveMonotoneX);
-
-		    svg.append("path")
-		        .datum(elevations)
-		        .attr("fill", "url(#elevation-gradient)")
-		        .attr("d", area);
-
-		    // Add line
-		    svg.append("path")
-		        .datum(elevations)
-		        .attr("fill", "none")
-		        .attr("stroke", "#2196F3")
-		        .attr("stroke-width", 2)
-		        .attr("d", line);
-
-		    // Add highlight point if specified
-		    if (highlightIndex !== null) {
-		        const highlightedPoint = elevations.find(e => e.index === highlightIndex);
-		        if (highlightedPoint) {
-		            svg.append("circle")
-		                .attr("cx", xScale(highlightedPoint.distance))
-		                .attr("cy", yScale(highlightedPoint.elevation))
-		                .attr("r", 4)
-		                .attr("fill", "#555")
-		                .attr("stroke", "white")
-		                .attr("stroke-width", 2);
-		        }
-		    }
-
-		    // Add axes
-		    svg.append("g")
-		        .attr("transform", `translate(0,${height - margin.bottom})`)
-		        .call(d3.axisBottom(xScale).ticks(4).tickFormat(d => `${d.toFixed(1)}km`));
-
-		    svg.append("g")
-		        .attr("transform", `translate(${margin.left},0)`)
-		        .call(d3.axisLeft(yScale).ticks(4).tickFormat(d => `${d}m`));
-
-		    // Hover interaction
-		    svg.append("rect")
-		        .attr("class", "hover-area")
-		        .attr("x", margin.left)
-		        .attr("y", margin.top)
-		        .attr("width", width - margin.left - margin.right)
-		        .attr("height", height - margin.top - margin.bottom)
-		        .attr("fill", "none")
-		        .attr("pointer-events", "all")
-		        .on("mouseover", () => tooltip.style("opacity", 1))
-		        .on("mouseout", () => tooltip.style("opacity", 0))
-			    .on("mousemove", (event) => {
-			        const [x] = d3.pointer(event);
-			        const distance = xScale.invert(x);
-			        const closest = elevations.reduce((prev, curr) => 
-			            Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
-        
-			        if (closest.index > 0) {
-			            const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
-            
-			            tooltip.attr("transform", `translate(${xScale(closest.distance)},${yScale(closest.elevation)})`)
-			                .select("rect")
-			                .attr("y", -60)
-			                .attr("height", 70);
-            
-			            tooltipText.html(`
-			                <tspan x="60" dy="-20">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
-			                <tspan x="60" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
-			                <tspan x="60" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
-			            `);
-			        }
-			    });
+			const tooltipConnector = svg.append("line")
+			    .attr("class", "tooltip-connector")
+			    .attr("stroke", "#666")
+			    .attr("stroke-width", 1)
+			    .attr("stroke-dasharray", "2,2")
+			    .style("opacity", 0);
 				
+			hoverArea.on("mousemove", (event) => {
+				    const [x] = d3.pointer(event);
+				    const distance = xScale.invert(x);
+				    const closest = elevations.reduce((prev, curr) => 
+				        Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
+
+				    if (closest.index > 0) {
+				        const smoothGrad = calculateSmoothedGradient(elevations, closest.index);
+        
+				        // Calculate tooltip position
+				        const tooltipWidth = 130;
+				        const tooltipHeight = 80;
+				        const xPos = xScale(closest.distance);
+        
+				        // Fixed vertical position (near bottom of chart)
+				        const fixedYPos = height - margin.bottom - tooltipHeight - 5;
+        
+				        // Determine tooltip horizontal direction (left or right of cursor)
+				        const direction = xPos > (width - margin.right - tooltipWidth - 20) ? 'left' : 'right';
+        
+				        // Position tooltip
+				        if (direction === 'right') {
+				            tooltip.attr("transform", `translate(${xPos + 10},${fixedYPos})`);
+				            tooltipText.attr("x", tooltipWidth/2);
+				        } else {
+				            tooltip.attr("transform", `translate(${xPos - tooltipWidth - 10},${fixedYPos})`);
+				            tooltipText.attr("x", tooltipWidth/2);
+				        }
+        
+				        // Update tooltip content
+				        tooltipText.html(`
+				            <tspan x="${tooltipWidth/2}" dy="-30">Elevation: ${closest.elevation.toFixed(0)}m</tspan>
+				            <tspan x="${tooltipWidth/2}" dy="12">Distance: ${closest.distance.toFixed(1)}km</tspan>
+				            <tspan x="${tooltipWidth/2}" dy="12">Gradient: ${smoothGrad?.toFixed(1) || 'N/A'}% ${smoothGrad > 0 ? '↑' : '↓'}</tspan>
+				            ${closest.roadType && closest.roadType !== 'unknown' ? 
+				              `<tspan x="${tooltipWidth/2}" dy="12">Road: ${closest.roadType}</tspan>` : ''}
+				        `);
+        
+				        tooltip.style("opacity", 1);
+				    }
+				});
+				
+				// Add this to your hoverArea interaction in createElevationChart:
+				hoverArea.on("click", (event) => {
+				    const [x] = d3.pointer(event);
+				    const distance = xScale.invert(x);
+				    const closest = elevations.reduce((prev, curr) => 
+				        Math.abs(curr.distance - distance) < Math.abs(prev.distance - distance) ? curr : prev);
+
+				    if (closest && closest.coord) {
+				        // Pan map to this point
+				        map.panTo([closest.coord[1], closest.coord[0]]);
+        
+				        // Update hover marker
+				        if (!hoverMarker) {
+				            hoverMarker = L.marker([closest.coord[1], closest.coord[0]], { 
+				                icon: hoverPointIcon,
+				                zIndexOffset: 1000,
+				                interactive: false
+				            }).addTo(map);
+				        } else {
+				            hoverMarker.setLatLng([closest.coord[1], closest.coord[0]]);
+				        }
+				    }
+				    const yPos = yScale(closest.elevation);
+				    tooltipConnector
+				        .attr("x1", xPos)
+				        .attr("y1", yPos)
+				        .attr("x2", direction === 'right' ? xPos + 10 : xPos - 10)
+				        .attr("y2", fixedYPos + tooltipHeight/2)
+				        .style("opacity", 1);						
+				});
+				
+				hoverArea.on("mouseout", () => {
+				    tooltip.style("opacity", 0);
+				});
+
 		    return svg.node();
 		}
-		
+
 		function updateElevationProfile(geometry, highlightIndex = null, roadType = null) {
 		    const elevationDiv = document.getElementById('elevation-profile');
 		    const coords = geometry.coordinates;
@@ -1413,31 +1170,49 @@
 		    let closestDistance = Infinity;
 		    let closestPoint = null;
 		    let closestIndex = 0;
+		    let closestDistanceAlongRoute = 0;
 		    let roadType = 'unknown';
-    
-		    // Convert road elements to LatLng arrays for easier comparison
+		    let cumulativeDistance = 0;
+
 		    const roadSegments = (roadElements || []).map(el => ({
 		        type: el.tags?.highway || 'unknown',
 		        points: (el.geometry || []).map(p => L.latLng(p.lat, p.lon))
 		    }));
 
+		    // Calculate distance along route for each point
+		    const pointsWithDistance = [];
 		    for (let i = 0; i < routeCoords.length; i++) {
 		        const coord = routeCoords[i];
 		        if (!coord || coord.length < 2) continue;
-        
+
 		        const pointLatLng = L.latLng(coord[1], coord[0]);
 		        const distance = mouseLatLng.distanceTo(pointLatLng);
         
+		        // Calculate distance along route
+		        if (i > 0) {
+		            const prevCoord = routeCoords[i-1];
+		            cumulativeDistance += haversineDistance(prevCoord, coord);
+		        }
+        
+		        pointsWithDistance.push({
+		            latlng: pointLatLng,
+		            index: i,
+		            distanceToMouse: distance,
+		            distanceAlongRoute: cumulativeDistance,
+		            coord: coord
+		        });
+
 		        if (distance < closestDistance) {
 		            closestDistance = distance;
 		            closestPoint = pointLatLng;
 		            closestIndex = i;
+		            closestDistanceAlongRoute = cumulativeDistance;
             
-		            // Find road type by checking proximity to known segments
+		            // Find road type
 		            if (roadSegments.length > 0) {
 		                for (const segment of roadSegments) {
 		                    for (const segmentPoint of segment.points) {
-		                        if (pointLatLng.distanceTo(segmentPoint) < 20) { // 20 meter threshold
+		                        if (pointLatLng.distanceTo(segmentPoint) < 20) {
 		                            roadType = segment.type;
 		                            break;
 		                        }
@@ -1447,15 +1222,17 @@
 		            }
 		        }
 		    }
-    
+
 		    return closestPoint ? {
 		        latlng: closestPoint,
 		        index: closestIndex,
 		        distance: closestDistance,
-		        roadType: roadType
+		        roadType: roadType,
+		        distanceAlongRoute: closestDistanceAlongRoute,
+		        elevation: routeCoords[closestIndex][2] || null
 		    } : null;
 		}
-		
+			
 		function findRoadSegmentForPoint(coord, roadElements) {
 		    // Simple implementation - finds first road element containing this point
 		    // In a real app, you'd want more precise spatial matching
@@ -1514,21 +1291,22 @@
 		        }
 		        updateElevationProfile(geometry); // Reset elevation profile
 		    });
-    
+			// Replace your current route interaction code with this:
 			route.on('mousemove', function(e) {
 			    if (!currentRouteData || !currentRouteData.geometry) {
 			        return;
 			    }
-    
+
 			    const roadElements = currentRouteData.roadElements || [];
 			    const closestPoint = findClosestPointOnRoute(
 			        e.latlng, 
 			        currentRouteData.geometry.coordinates,
 			        roadElements
 			    );
-    
+
 			    if (!closestPoint) return;
-    
+
+			    // Update or create hover marker
 			    if (!hoverMarker) {
 			        hoverMarker = L.marker(closestPoint.latlng, { 
 			            icon: hoverPointIcon,
@@ -1538,12 +1316,31 @@
 			    } else {
 			        hoverMarker.setLatLng(closestPoint.latlng);
 			    }
-    
+
+			    // Update elevation profile with highlighted point
 			    updateElevationProfile(
 			        currentRouteData.geometry, 
 			        closestPoint.index,
 			        closestPoint.roadType
 			    );
+			});
+
+			route.on('mouseout', function(e) {
+			    this.setStyle({
+			        weight: 5,
+			        opacity: 0.8
+			    });
+
+			    // Remove hover markers
+			    if (hoverMarker) {
+			        map.removeLayer(hoverMarker);
+			        hoverMarker = null;
+			    }
+    
+			    // Update elevation profile without highlight
+			    if (currentRouteData?.geometry) {
+			        updateElevationProfile(currentRouteData.geometry);
+			    }
 			});
 		}
 				
